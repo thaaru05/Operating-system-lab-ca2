@@ -1,57 +1,55 @@
 import threading
-import time
-import random
 
-class ReaderWriter:
-    def __init__(self):
-        self.resource = 0
-        self.readers = 0
-        self.lock = threading.Lock()
-        self.stop_condition = threading.Event()  # Event to signal stop condition
+# Shared resource
+shared_resource = 0
 
-    def read(self, reader_id):
-        while not self.stop_condition.is_set():
-            time.sleep(random.random())  # Simulate reading time
-            with self.lock:
-                self.readers += 1
-                print(f"Reader {reader_id} is reading. Resource value: {self.resource}. Readers: {self.readers}")
-                self.readers -= 1
+# Mutex for writers
+writer_mutex = threading.Semaphore(1)
 
-    def write(self, writer_id):
-        while not self.stop_condition.is_set():
-            time.sleep(random.random())  # Simulate writing time
-            with self.lock:
-                self.resource += 1
-                print(f"Writer {writer_id} is writing. Resource value: {self.resource}")
+# Mutex for readers
+reader_mutex = threading.Semaphore(1)
 
-    def stop(self):
-        self.stop_condition.set()
+# Variable to count readers
+reader_count = 0
 
-if __name__ == "__main__":
-    rw = ReaderWriter()
+def writer():
+    global shared_resource
+    global writer_mutex
 
-    # Create reader threads
-    reader_threads = []
-    for i in range(3):
-        t = threading.Thread(target=rw.read, args=(i,))
-        reader_threads.append(t)
-        t.start()
+    writer_mutex.acquire()
+    shared_resource += 1
+    print(f"Writer writes: {shared_resource}")
+    writer_mutex.release()
 
-    # Create writer threads
-    writer_threads = []
-    for i in range(2):
-        t = threading.Thread(target=rw.write, args=(i,))
-        writer_threads.append(t)
-        t.start()
+def reader():
+    global reader_count
+    global shared_resource
+    global reader_mutex
 
-    # Let the threads run for a while
-    time.sleep(10)
+    reader_mutex.acquire()
+    reader_count += 1
+    if reader_count == 1:
+        writer_mutex.acquire()  # First reader acquires the writer lock
+    reader_mutex.release()
 
-    # Signal stop condition
-    rw.stop()
+    print(f"Reader reads: {shared_resource}")
 
-    # Join all threads
-    for t in reader_threads + writer_threads:
-        t.join()
+    reader_mutex.acquire()
+    reader_count -= 1
+    if reader_count == 0:
+        writer_mutex.release()  # Last reader releases the writer lock
+    reader_mutex.release()
 
-    print("Program stopped.")
+# Create some threads
+threads = []
+for _ in range(5):
+    threads.append(threading.Thread(target=reader))
+    threads.append(threading.Thread(target=writer))
+
+# Start the threads
+for thread in threads:
+    thread.start()
+
+# Wait for all threads to finish
+for thread in threads:
+    thread.join()
