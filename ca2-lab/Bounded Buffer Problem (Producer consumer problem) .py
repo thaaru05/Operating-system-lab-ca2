@@ -1,56 +1,58 @@
-import threading
-import time
-import random
 
-MAX_BUFFER_SIZE = 5  # Maximum size of the buffer
-buffer = []  # Shared buffer
-mutex = threading.Semaphore(1)  # Semaphore for mutual exclusion
-empty = threading.Semaphore(MAX_BUFFER_SIZE)  # Semaphore to track empty slots
-full = threading.Semaphore(0)  # Semaphore to track filled slots
-stop_event = threading.Event()  # Event to signal stop condition
+import threading
+import random
+import time
+
+# Buffer size
+BUFFER_SIZE = 5
+
+# Shared buffer
+buffer = []
+buffer_lock = threading.Lock()
+empty_semaphore = threading.Semaphore(BUFFER_SIZE)
+full_semaphore = threading.Semaphore(0)
+
+# Event to signal threads to stop
+stop_event = threading.Event()
 
 def producer():
+    global buffer
     while not stop_event.is_set():
-        empty.acquire()  # wait until there is an empty slot
-        mutex.acquire()  # acquire the lock
-        if stop_event.is_set():
-            mutex.release()  # release the lock if stop event is set
-            break
-        item = random.randint(1, 100)  # produce an item
-        buffer.append(item)  # insert the item into the buffer
-        print(f"Producer produced item {item}, Buffer: {buffer}")
-        mutex.release()  # release the lock
-        full.release()  # increment 'full'
+        item = random.randint(1, 5)  # Produce an item
+        empty_semaphore.acquire()  # Wait if buffer is full
+        buffer_lock.acquire()  # Acquire lock
+        buffer.append(item)  # Put the item into the buffer
+        print(f"Produced: {item}, Buffer: {buffer}")
+        buffer_lock.release()  # Release lock
+        full_semaphore.release()  # Signal that buffer is not empty
+        time.sleep(random.random())  # Simulate some time passing
 
 def consumer():
-    while not stop_event.is_set() or buffer:
-        full.acquire()  # wait until there is a filled slot
-        mutex.acquire()  # acquire the lock
-        if buffer:
-            item = buffer.pop(0)  # remove an item from the buffer
-            print(f"Consumer consumed item {item}, Buffer: {buffer}")
-        mutex.release()  # release the lock
-        empty.release()  # increment 'empty'
+    global buffer
+    while not stop_event.is_set():
+        full_semaphore.acquire()  # Wait if buffer is empty
+        buffer_lock.acquire()  # Acquire lock
+        item = buffer.pop(0)  # Consume an item from the buffer
+        print(f"Consumed: {item}, Buffer: {buffer}")
+        buffer_lock.release()  # Release lock
+        empty_semaphore.release()  # Signal that buffer is not full
+        time.sleep(random.random())  # Simulate some time passing
 
-if __name__ == "__main__":
-    # Creating producer and consumer threads
-    threads = []
-    threads.append(threading.Thread(target=producer))
-    threads.append(threading.Thread(target=consumer))
+# Create producer and consumer threads
+producer_thread = threading.Thread(target=producer)
+consumer_thread = threading.Thread(target=consumer)
 
-    # Starting threads
-    for thread in threads:
-        thread.start()
+# Start the threads
+producer_thread.start()
+consumer_thread.start()
 
-    # Let the program run for a while
-    time.sleep(10)
+# Wait for 0.2 seconds
+time.sleep(0.2)
 
-    # Set stop event
-    stop_event.set()
+# Set the event to stop the threads
+stop_event.set()
 
-    # Waiting for threads to complete
-    for thread in threads:
-        thread.join()
-
-    print("All threads have finished execution")
+# Join the threads
+producer_thread.join()
+consumer_thread.join()
 
