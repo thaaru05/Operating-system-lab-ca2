@@ -14,49 +14,62 @@ mutex = threading.Semaphore(1)
 # Define a list to keep track of the waiting customers
 waiting_customers = []
 
+# Define an event for the stop condition
+stop_event = threading.Event()
+
 # Define the barber thread function
 def barber():
-	while True:
-		print("The barber is sleeping...")
-		barber_semaphore.acquire()
-		mutex.acquire()
-		if len(waiting_customers) > 0:
-			customer = waiting_customers.pop(0)
-			print(f"The barber is cutting hair for customer {customer}")
-			mutex.release()
-			time.sleep(random.randint(1, 5))
-			print(f"The barber has finished cutting hair for customer {customer}")
-			customer_semaphore.release()
-		else:
-			mutex.release()
-	
+    while not stop_event.is_set():
+        print("The barber is sleeping...")
+        barber_semaphore.acquire()
+        mutex.acquire()
+        if len(waiting_customers) > 0:
+            customer = waiting_customers.pop(0)
+            print(f"The barber is cutting hair for customer {customer}")
+            mutex.release()
+            time.sleep(random.randint(1, 5))
+            print(f"The barber has finished cutting hair for customer {customer}")
+            customer_semaphore.release()
+        else:
+            mutex.release()
+
 # Define the customer thread function
 def customer(index):
-	global waiting_customers
-	time.sleep(random.randint(1, 5))
-	mutex.acquire()
-	if len(waiting_customers) < NUM_CHAIRS:
-		waiting_customers.append(index)
-		print(f"Customer {index} is waiting in the waiting room")
-		mutex.release()
-		barber_semaphore.release()
-		customer_semaphore.acquire()
-		print(f"Customer {index} has finished getting a haircut")
-	else:
-		print(f"Customer {index} is leaving because the waiting room is full")
-		mutex.release()
+    global waiting_customers
+    time.sleep(random.randint(1, 5))
+    mutex.acquire()
+    if len(waiting_customers) < NUM_CHAIRS:
+        waiting_customers.append(index)
+        print(f"Customer {index} is waiting in the waiting room")
+        mutex.release()
+        barber_semaphore.release()
+        customer_semaphore.acquire()
+        print(f"Customer {index} has finished getting a haircut")
+    else:
+        print(f"Customer {index} is leaving because the waiting room is full")
+        mutex.release()
 
-# Create a thread for the barber
-barber_thread = threading.Thread(target=barber)
+if __name__ == "__main__":
+    # Create a thread for the barber
+    barber_thread = threading.Thread(target=barber)
 
-# Create a thread for each customer
-customer_threads = []
-for i in range(MAX_CUSTOMERS):
-	customer_threads.append(threading.Thread(target=customer, args=(i,)))
-	
-# Start the barber and customer threads
-barber_thread.start()
-for thread in customer_threads:
-	thread.start()
-	
-# Wait for the customer
+    # Create a thread for each customer
+    customer_threads = []
+    for i in range(MAX_CUSTOMERS):
+        customer_threads.append(threading.Thread(target=customer, args=(i,)))
+
+    # Start the barber and customer threads
+    barber_thread.start()
+    for thread in customer_threads:
+        thread.start()
+
+    # Wait for the customer stop condition
+    time.sleep(30)  # Simulating the barber shop running for some time
+    stop_event.set()  # Set the stop event
+
+    # Join the threads
+    barber_thread.join()
+    for thread in customer_threads:
+        thread.join()
+
+    print("Barber shop is closed")
