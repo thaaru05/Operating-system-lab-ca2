@@ -2,52 +2,56 @@ import threading
 import time
 import random
 
-database = {}  # Shared resource
-read_count = 0
-m = threading.Semaphore(1)  # Semaphore for mutual exclusion
-w = threading.Semaphore(1)  # Semaphore for writer preference
+class ReaderWriter:
+    def __init__(self):
+        self.resource = 0
+        self.readers = 0
+        self.lock = threading.Lock()
+        self.stop_condition = threading.Event()  # Event to signal stop condition
 
-def writer():
-    while True:
-        w.acquire()
-        # Write operation
-        print(f"Writer {threading.current_thread().name} is writing to database")
-        database[threading.current_thread().name] = random.randint(1, 100)
-        time.sleep(random.randint(1, 3))
-        w.release()
+    def read(self, reader_id):
+        while not self.stop_condition.is_set():
+            time.sleep(random.random())  # Simulate reading time
+            with self.lock:
+                self.readers += 1
+                print(f"Reader {reader_id} is reading. Resource value: {self.resource}. Readers: {self.readers}")
+                self.readers -= 1
 
-def reader():
-    global read_count  # declare read_count as global
-    while True:
-        m.acquire()
-        read_count += 1
-        if read_count == 1:
-            w.acquire()
-        m.release()
+    def write(self, writer_id):
+        while not self.stop_condition.is_set():
+            time.sleep(random.random())  # Simulate writing time
+            with self.lock:
+                self.resource += 1
+                print(f"Writer {writer_id} is writing. Resource value: {self.resource}")
 
-        # Read operation
-        print(f"Reader {threading.current_thread().name} is reading database: {database}")
-        time.sleep(random.randint(1, 3))
-
-        m.acquire()
-        read_count -= 1
-        if read_count == 0:
-            w.release()
-        m.release()
+    def stop(self):
+        self.stop_condition.set()
 
 if __name__ == "__main__":
-    # Creating reader and writer threads
-    threads = []
-    for i in range(5):
-        threads.append(threading.Thread(target=reader))
-        threads.append(threading.Thread(target=writer))
+    rw = ReaderWriter()
 
-    # Starting threads
-    for thread in threads:
-        thread.start()
+    # Create reader threads
+    reader_threads = []
+    for i in range(3):
+        t = threading.Thread(target=rw.read, args=(i,))
+        reader_threads.append(t)
+        t.start()
 
-    # Waiting for threads to complete
-    for thread in threads:
-        thread.join()
+    # Create writer threads
+    writer_threads = []
+    for i in range(2):
+        t = threading.Thread(target=rw.write, args=(i,))
+        writer_threads.append(t)
+        t.start()
 
-    print("All threads have finished execution")
+    # Let the threads run for a while
+    time.sleep(10)
+
+    # Signal stop condition
+    rw.stop()
+
+    # Join all threads
+    for t in reader_threads + writer_threads:
+        t.join()
+
+    print("Program stopped.")
