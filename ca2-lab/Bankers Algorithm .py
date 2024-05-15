@@ -44,8 +44,11 @@ if __name__=="__main__":
                         avail[y] += alloc[i][y]
                     f[i] = 1
                     
-    print("Following is the SAFE Sequence")
+    if 0 in f:
+        print("system is not safe")
+    else:
+        print("Following is the SAFE Sequence")
     
-    for i in range(n - 1):
-        print(" P", ans[i], " ->", sep="", end="")
-    print(" P", ans[n - 1], sep="")
+        for i in range(n - 1):
+            print(" P", ans[i], " ->", sep="", end="")
+        print(" P", ans[n - 1], sep="")
